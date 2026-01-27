@@ -1,0 +1,6 @@
+.analyzer_rag/
+.env
+__pycache__/
+*.pyc
+.vscode/
+Code-Analyzer(Sayantan Sahoo)/
