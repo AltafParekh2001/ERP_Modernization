@@ -181,6 +181,31 @@ def create_parser() -> argparse.ArgumentParser:
         help="Directory for persistent storage",
     )
     
+    # Transpile command
+    transpile_parser = subparsers.add_parser(
+        "transpile",
+        help="Transpile Python code to Go"
+    )
+    transpile_parser.add_argument(
+        "path",
+        help="Python file or directory to transpile",
+    )
+    transpile_parser.add_argument(
+        "-o", "--output",
+        help="Output file/directory (default: ./transpiled_go/)",
+    )
+    transpile_parser.add_argument(
+        "-p", "--package",
+        default="main",
+        help="Go package name (default: main)",
+    )
+    transpile_parser.add_argument(
+        "-r", "--recursive",
+        action="store_true",
+        default=True,
+        help="Recursively process subdirectories (default: True)",
+    )
+    
     return parser
 
 
@@ -512,6 +537,65 @@ def cmd_rag_stats(args: argparse.Namespace, rag_config) -> int:
     return 0
 
 
+def cmd_transpile(args: argparse.Namespace) -> int:
+    """Execute transpile command."""
+    from analyzer.transpiler import PythonToGoTranspiler
+    
+    path = Path(args.path)
+    
+    if not path.exists():
+        print(f"Error: Path not found: {path}", file=sys.stderr)
+        return 1
+    
+    transpiler = PythonToGoTranspiler(args.package)
+    
+    if path.is_file():
+        if not path.suffix == ".py":
+            print(f"Error: Expected .py file, got: {path}", file=sys.stderr)
+            return 1
+        
+        # Determine output path
+        if args.output:
+            output_path = Path(args.output)
+        else:
+            output_path = Path("transpiled_go") / path.with_suffix(".go").name
+        
+        print(f"Transpiling: {path}")
+        go_code = transpiler.transpile_file(path, output_path, args.package)
+        print(f"Output: {output_path}")
+        print(f"Package: {args.package}")
+        
+    else:
+        # Directory transpilation
+        if args.output:
+            output_dir = Path(args.output)
+        else:
+            output_dir = Path(f"transpiled_go_{path.name}")
+        
+        print(f"Transpiling directory: {path}")
+        results = transpiler.transpile_directory(
+            path, output_dir, args.package, recursive=args.recursive
+        )
+        
+        success = sum(1 for v in results.values() if not v.startswith("ERROR"))
+        errors = sum(1 for v in results.values() if v.startswith("ERROR"))
+        
+        print(f"\nTranspilation complete:")
+        print(f"  Output: {output_dir}")
+        print(f"  Files processed: {len(results)}")
+        print(f"  Successful: {success}")
+        print(f"  Errors: {errors}")
+        
+        if errors > 0:
+            print("\nFiles with errors:")
+            for src, result in results.items():
+                if result.startswith("ERROR"):
+                    print(f"  - {Path(src).name}: {result}")
+            return 1
+    
+    return 0
+
+
 def main() -> int:
     """Main entry point."""
     parser = create_parser()
@@ -532,6 +616,8 @@ def main() -> int:
             return cmd_init(args)
         elif args.command == "rag":
             return cmd_rag(args)
+        elif args.command == "transpile":
+            return cmd_transpile(args)
         else:
             parser.print_help()
             return 0

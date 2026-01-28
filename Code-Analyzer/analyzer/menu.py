@@ -74,6 +74,7 @@ def print_menu():
         ("7", "🔍 Query Code", "Search code with natural language"),
         ("8", "📝 Generate Summary", "Get AI-friendly code summary"),
         ("A", "🤖 RAG AI Assistant", "Ask AI questions about your code"),
+        ("B", "🔄 Python→Go Transpiler", "Convert Python code to Go"),
         ("9", "⚙️  Settings", "Configure analyzer options"),
         ("0", "❌ Exit", "Exit the analyzer"),
     ]
@@ -816,6 +817,202 @@ def rag_clear_menu():
     input("\nPress Enter to continue...")
 
 
+def transpiler_menu():
+    """Handle Python to Go transpiler menu."""
+    print("\n🔄 PYTHON → GO TRANSPILER")
+    print("-" * 30)
+    print("\nConvert Python code to equivalent Go code.")
+    print("Output will be saved to a folder in the project root.")
+    
+    while True:
+        print("\n🔄 Transpiler Options:")
+        print("  [1] 📄 Transpile Single File")
+        print("  [2] 📁 Transpile Directory")
+        print("  [3] 📝 Transpile Code Snippet")
+        print("  [0] ⬅️  Back to Main Menu")
+        
+        choice = input("\nChoice: ").strip()
+        
+        if choice == "0":
+            break
+        elif choice == "1":
+            transpile_file_menu()
+        elif choice == "2":
+            transpile_directory_menu()
+        elif choice == "3":
+            transpile_snippet_menu()
+        else:
+            print("❌ Invalid option.")
+
+
+def transpile_file_menu():
+    """Transpile a single Python file to Go."""
+    print("\n📄 TRANSPILE FILE")
+    print("-" * 30)
+    
+    path = get_path_input("Enter Python file path")
+    if not path:
+        return
+    
+    if not path.endswith(".py"):
+        print("❌ Please provide a Python (.py) file.")
+        input("\nPress Enter to continue...")
+        return
+    
+    # Default output to root directory
+    source_path = Path(path)
+    default_output = Path.cwd() / "transpiled_go" / source_path.with_suffix(".go").name
+    
+    print(f"\nDefault output: {default_output}")
+    custom = input("Use custom output path? (y/n): ").lower()
+    
+    if custom == 'y':
+        output_path = input("Enter output path: ").strip()
+        if not output_path:
+            output_path = str(default_output)
+    else:
+        output_path = str(default_output)
+    
+    # Get package name
+    package = input("Package name (default: main): ").strip() or "main"
+    
+    try:
+        from analyzer.transpiler import PythonToGoTranspiler
+        
+        print("\n⏳ Transpiling...")
+        transpiler = PythonToGoTranspiler(package)
+        go_code = transpiler.transpile_file(path, output_path, package)
+        
+        print("\n" + "=" * 50)
+        print("✅ TRANSPILATION COMPLETE")
+        print("=" * 50)
+        print(f"  Output: {output_path}")
+        print(f"  Package: {package}")
+        
+        # Show preview
+        preview = input("\nShow preview? (y/n): ").lower()
+        if preview == 'y':
+            print("\n" + "-" * 40)
+            print(go_code[:2000])
+            if len(go_code) > 2000:
+                print("\n... (truncated)")
+            print("-" * 40)
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+    
+    input("\nPress Enter to continue...")
+
+
+def transpile_directory_menu():
+    """Transpile a directory of Python files to Go."""
+    print("\n📁 TRANSPILE DIRECTORY")
+    print("-" * 30)
+    
+    source_dir = get_path_input("Enter source directory path")
+    if not source_dir:
+        return
+    
+    if not Path(source_dir).is_dir():
+        print("❌ Please provide a valid directory.")
+        input("\nPress Enter to continue...")
+        return
+    
+    # Default output to root directory
+    source_name = Path(source_dir).name
+    default_output = Path.cwd() / f"transpiled_go_{source_name}"
+    
+    print(f"\nDefault output: {default_output}")
+    custom = input("Use custom output directory? (y/n): ").lower()
+    
+    if custom == 'y':
+        output_dir = input("Enter output directory: ").strip()
+        if not output_dir:
+            output_dir = str(default_output)
+    else:
+        output_dir = str(default_output)
+    
+    # Get package name
+    package = input("Base package name (default: main): ").strip() or "main"
+    
+    try:
+        from analyzer.transpiler import PythonToGoTranspiler
+        
+        print("\n⏳ Transpiling directory...")
+        transpiler = PythonToGoTranspiler(package)
+        results = transpiler.transpile_directory(source_dir, output_dir, package)
+        
+        success = sum(1 for v in results.values() if not v.startswith("ERROR"))
+        errors = sum(1 for v in results.values() if v.startswith("ERROR"))
+        
+        print("\n" + "=" * 50)
+        print("✅ TRANSPILATION COMPLETE")
+        print("=" * 50)
+        print(f"  Output directory: {output_dir}")
+        print(f"  Files processed: {len(results)}")
+        print(f"  Successful: {success}")
+        print(f"  Errors: {errors}")
+        
+        if errors > 0:
+            print("\n⚠️  Files with errors:")
+            for src, result in results.items():
+                if result.startswith("ERROR"):
+                    print(f"    - {Path(src).name}: {result}")
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+    
+    input("\nPress Enter to continue...")
+
+
+def transpile_snippet_menu():
+    """Transpile a code snippet."""
+    print("\n📝 TRANSPILE CODE SNIPPET")
+    print("-" * 30)
+    print("\nEnter Python code (end with an empty line):")
+    
+    lines = []
+    while True:
+        line = input()
+        if not line:
+            break
+        lines.append(line)
+    
+    if not lines:
+        print("❌ No code entered.")
+        input("\nPress Enter to continue...")
+        return
+    
+    code = "\n".join(lines)
+    package = input("\nPackage name (default: main): ").strip() or "main"
+    
+    try:
+        from analyzer.transpiler import PythonToGoTranspiler
+        
+        transpiler = PythonToGoTranspiler(package)
+        go_code = transpiler.transpile_code(code, package)
+        
+        print("\n" + "=" * 50)
+        print("✅ GENERATED GO CODE")
+        print("=" * 50)
+        print(go_code)
+        print("=" * 50)
+        
+        # Offer to save
+        save = input("\nSave to file? (y/n): ").lower()
+        if save == 'y':
+            filename = input("Filename (default: snippet.go): ").strip() or "snippet.go"
+            output_path = Path.cwd() / "transpiled_go" / filename
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(go_code, encoding="utf-8")
+            print(f"✅ Saved to {output_path}")
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+    
+    input("\nPress Enter to continue...")
+
+
 def settings_menu():
     """Handle settings."""
     print("\n⚙️  SETTINGS")
@@ -860,6 +1057,8 @@ def main():
                 generate_summary_menu()
             elif choice == "A":
                 rag_menu()
+            elif choice == "B":
+                transpiler_menu()
             elif choice == "9":
                 settings_menu()
             else:
